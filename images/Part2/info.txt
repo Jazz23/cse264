@@ -1,0 +1,2 @@
+gain: 640
+exposure time: 1/252
