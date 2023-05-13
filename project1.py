@@ -2,10 +2,11 @@ import cv2
 import matplotlib.pyplot as plt
 import os
 
+# Returns brightness for a given epoxure time T
 # averages is a dictionary, where the key is the exposure time and the value is the average color
 def BprimeOfT(T, exposures):
-    # B is the sorted zip of exposures based on the key
-    B = sorted(exposures.items(), key=lambda x: x[0])
+    # B is a dict: key is Time, value is Brightness
+    B = sorted(exposures.items(), key=lambda x: x[0]) # Sort by Time
     
     # If T < the first key in B (the exposure time)
     if T < B[0][0]:
@@ -17,6 +18,29 @@ def BprimeOfT(T, exposures):
     T_i = max(filter(lambda i: B[i][0] < T, range(len(B))))
     
     return B[T_i][1] + (T - B[T_i][0]) * (B[T_i + 1][1] - B[T_i][1]) / (B[T_i + 1][0] - B[T_i][0])
+
+# Returns exposure time for given Brightness
+def gOf(b, exposures):
+    # Key is Time, value is Brightness
+    B = sorted(exposures.items(), key=lambda x: x[1]) # Sort by brightness
+    
+    # If B' < The smallest brightness in B
+    if b < B[0][1]:
+        return b * B[0][0] / B[0][1]
+    elif b > B[-0][1]: # T is greater than the maximum brightnes
+        return B[-1][0] + (b - B[-1][1]) * (B[-0][0] - B[-1][0]) / (B[-0][1] - B[-1][1])
+    
+    T_i = max(filter(lambda i: B[i][1] < b, range(len(B))))
+    
+    return B[T_i][0] + (b - B[T_i][1]) * (B[T_i+1][0]-B[T_i][0]) / (B[T_i+1][1] - B[T_i][1])
+    
+    
+def linearize(img, exposures):
+    for color in cv2.split(img):
+        alpha = 255 / gOf(255, exposures)
+        # For each color, apply alpha * gOf(color, exposures) and return the new image
+        
+    
 
 def plot_average_color():
     exposures = []  # List to store exposure times
@@ -46,10 +70,11 @@ def plot_average_color():
     plt.xlabel('Time (s)')
     plt.ylabel('B\'')
     plt.legend()
-    # plt.show()
+    plt.show()
     return exposures, r_averages, g_averages, b_averages
 
 B, r, g, b = plot_average_color()
 # Passes a dict, where the key is B and the values are r
-result = BprimeOfT(1, dict(zip(B, r)))
+result = gOf(30, dict(zip(B, r)))
 print(result)
+cv2.waitKey(0)
