@@ -20,7 +20,7 @@ def BprimeOfT(T, exposures):
     return B[T_i][1] + (T - B[T_i][0]) * (B[T_i + 1][1] - B[T_i][1]) / (B[T_i + 1][0] - B[T_i][0])
 
 # Returns exposure time for given Brightness
-def gOf(b, exposures):
+def gOf(b: float, exposures: dict[float, float]):
     # Key is Time, value is Brightness
     B = sorted(exposures.items(), key=lambda x: x[1]) # Sort by brightness
     
@@ -35,14 +35,19 @@ def gOf(b, exposures):
     return B[T_i][0] + (b - B[T_i][1]) * (B[T_i+1][0]-B[T_i][0]) / (B[T_i+1][1] - B[T_i][1])
     
     
-def linearize(img, exposures):
-    for color in cv2.split(img):
-        alpha = 255 / gOf(255, exposures)
-        # For each color, apply alpha * gOf(color, exposures) and return the new image
-        
+def linearize(img, exposures: list[dict[float, float]]):
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            alpha1 = 255 / gOf(255, exposures[0])
+            alpha2 = 255 / gOf(255, exposures[1])
+            alpha3 = 255 / gOf(255, exposures[2])
+            img[i][j] = (alpha1 * gOf(img[i][j][0], exposures[0]),
+                         alpha2 * gOf(img[i][j][1], exposures[1]),
+                         alpha3 * gOf(img[i][j][2], exposures[2]))
+    return img
     
 
-def plot_average_color():
+def get_averages():
     exposures = []  # List to store exposure times
     r_averages = []  # List to store average red values
     g_averages = []  # List to store average green values
@@ -64,17 +69,43 @@ def plot_average_color():
             g_averages.append(g.mean())
             b_averages.append(b.mean())
     
-    plt.plot(exposures, r_averages, 'r', label='Red')
-    plt.plot(exposures, g_averages, 'g', label='Green')
-    plt.plot(exposures, b_averages, 'b', label='Blue')
-    plt.xlabel('Time (s)')
-    plt.ylabel('B\'')
-    plt.legend()
-    plt.show()
-    return exposures, r_averages, g_averages, b_averages
+    # plt.plot(exposures, r_averages, 'r', label='Red')
+    # plt.plot(exposures, g_averages, 'g', label='Green')
+    # plt.plot(exposures, b_averages, 'b', label='Blue')
+    # plt.xlabel('Time (s)')
+    # plt.ylabel('B\'')
+    # plt.legend()
+    # plt.show()
+    return exposures, b_averages, g_averages, r_averages
 
-B, r, g, b = plot_average_color()
+
+# Input is the center point of the white, blue, yellow, and red patches if img
+# Returns the average linearized rgb values of each of the 4 patches
+def getCValues(img, coords: tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]):
+    result = []
+    B, b, g, r = get_averages()
+    exposures = [dict(zip(B, b)), dict(zip(B, g)), dict(zip(B, r))]
+    for coord in coords:
+        patch = img[coord[1]:coord[1]+20, coord[0]:coord[0]+20]
+        linearized = linearize(patch, exposures)
+        bl, gl, rl = cv2.split(linearized)
+        # append a triple representing the mean r g b of linearized
+        result.append((bl.mean(), gl.mean(), rl.mean()))
+    return result
+
 # Passes a dict, where the key is B and the values are r
-result = gOf(30, dict(zip(B, r)))
-print(result)
+img = cv2.imread("images/Part2/wb0il1/0.jpg")
+# Write the image to test.jpg
+# cv2.imwrite("test.jpg", img) # 680, 1088
+# cv2.imwrite("test3.jpg", linearize(img[680:700, 1088:1108], [dict(zip(B, b)), dict(zip(B, g)), dict(zip(B, r))]))
+# write the patch from 684, 1104 to 704, 1124
+
+# get the patch from 700, 1088 to 720, 1108
+cs = getCValues(img, ((684, 1104), (684, 1084), (704, 1084), (704, 1104)))
+# Plot (green, red) for each triple in cs, with each point as a red X
+plt.plot([x[1] for x in cs], [x[2] for x in cs], 'x', color='red')
+plt.xlabel('Green')
+plt.ylabel('Red')
+plt.show()
 cv2.waitKey(0)
+# Display the patch
