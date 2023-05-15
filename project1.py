@@ -182,7 +182,7 @@ def gatherCFromFolder(folder, exposures, greyCard = False, greyWorld = False):
     return result
     
 
-def plot(cs, ilSymbol, ):
+# def plot(cs, ilSymbol, ):
     
     
 B, b, g, r = get_averages()
