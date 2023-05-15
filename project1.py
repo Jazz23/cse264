@@ -47,7 +47,7 @@ def linearize(img, exposures: list[dict[float, float]]):
     return img
     
 
-def get_averages():
+def get_averages(givenExposures = None):
     exposures = []  # List to store exposure times
     r_averages = []  # List to store average red values
     g_averages = []  # List to store average green values
@@ -63,19 +63,22 @@ def get_averages():
             exposures.append(exposure)
 
             file_path = os.path.join(image_dir, filename)
-            image = cv2.imread(file_path)
-            b, g, r = cv2.split(image[400:500, 174:274])
+            image = cv2.imread(file_path)[400:500, 174:274]
+            if givenExposures != None:
+                image = linearize(image, givenExposures)
+            b, g, r = cv2.split(image)
             r_averages.append(r.mean())
             g_averages.append(g.mean())
             b_averages.append(b.mean())
     
-    # plt.plot(exposures, r_averages, 'r', label='Red')
-    # plt.plot(exposures, g_averages, 'g', label='Green')
-    # plt.plot(exposures, b_averages, 'b', label='Blue')
-    # plt.xlabel('Time (s)')
-    # plt.ylabel('B\'')
-    # plt.legend()
-    # plt.show()
+    if (givenExposures != None):
+        plt.plot(exposures, r_averages, 'r', label='Red')
+        plt.plot(exposures, g_averages, 'g', label='Green')
+        plt.plot(exposures, b_averages, 'b', label='Blue')
+        plt.xlabel('Time (s)')
+        plt.ylabel('f-1(B\')')
+        plt.legend()
+        plt.show()
     return exposures, b_averages, g_averages, r_averages
 
 # Coords is the coords of white square
@@ -137,8 +140,10 @@ def parseCoords(folder):
     return coordinates, squareCoords
 
 def getGreyWorldD(img, coords):
+    # coords[0] are the top left (x, y) coords
+    # coords[1] are the bottom right (x, y) coords
     # Get the average rgb values at the patch coords
-    b, g, r = cv2.split(img[coords[0][0]:coords[1][0], coords[0][1]:coords[1][1]])
+    b, g, r = cv2.split(img[coords[0][1]:coords[1][1], coords[0][0]:coords[1][0]])
     # Return a matrix such that D * [r, g, b] = [180, 180, 180]
     return [200 / b.mean(), 200 / g.mean(), 200 / r.mean()]
     
@@ -166,14 +171,14 @@ def gatherCFromFolder(folder, exposures, greyCard = False, greyWorld = False):
         totalWhite = cs[0][0] + cs[0][1] + cs[0][2]
         rgWhite = (cs[0][2] / totalWhite, cs[0][1] / totalWhite)
         
-        totalCyan = cs[0][0] + cs[0][1] + cs[0][2]
-        rgCyan = (cs[0][2] / totalCyan, cs[0][1] / totalCyan)
+        totalCyan = cs[1][0] + cs[1][1] + cs[1][2]
+        rgCyan = (cs[1][2] / totalCyan, cs[1][1] / totalCyan)
         
-        totalYellow = cs[0][0] + cs[0][1] + cs[0][2]
-        rgYellow = (cs[0][2] / totalYellow, cs[0][1] / totalYellow)
+        totalYellow = cs[2][0] + cs[2][1] + cs[2][2]
+        rgYellow = (cs[2][2] / totalYellow, cs[2][1] / totalYellow)
         
-        totalMagenta = cs[0][0] + cs[0][1] + cs[0][2]
-        rgMagenta = (cs[0][2] / totalMagenta, cs[0][1] / totalMagenta)
+        totalMagenta = cs[3][0] + cs[3][1] + cs[3][2]
+        rgMagenta = (cs[3][2] / totalMagenta, cs[3][1] / totalMagenta)
         
         result[0].append(rgWhite) # Append this pair to white's list of 5 rgs
         result[1].append(rgCyan)
@@ -182,10 +187,46 @@ def gatherCFromFolder(folder, exposures, greyCard = False, greyWorld = False):
     return result
     
 
-# def plot(cs, ilSymbol, ):
+
+def plot(cs, ilSymbol):
+    for color, text in zip(cs, ['black', 'cyan', 'green', 'magenta']):
+        for point in color:
+            plt.scatter(point[0], point[1], c=text, marker=ilSymbol)
     
     
 B, b, g, r = get_averages()
 exposures = [dict(zip(B, b)), dict(zip(B, g)), dict(zip(B, r))]
-test = gatherCFromFolder("images/Part2/wb0il1", exposures, greyWorld = True)
-print(test)
+
+# get_averages(exposures)
+
+# plt.xlabel("R/(R+G+B)")
+# plt.ylabel("G/(R+G+B)")
+# plt.title("grey world")
+# plot(gatherCFromFolder("images/Part2/wb0il1", exposures, greyWorld=True), 'x')
+# plot(gatherCFromFolder("images/Part2/wb0il2", exposures, greyWorld=True), '*')
+# plot(gatherCFromFolder("images/Part2/wb0il3", exposures, greyWorld=True), '.')
+# plt.show()
+
+# plt.xlabel("R/(R+G+B)")
+# plt.ylabel("G/(R+G+B)")
+# plt.title("white patch")
+# plot(gatherCFromFolder("images/Part2/wb0il1", exposures, True), 'x')
+# plot(gatherCFromFolder("images/Part2/wb0il2", exposures, True), '*')
+# plot(gatherCFromFolder("images/Part2/wb0il3", exposures, True), '.')
+# plt.show()
+
+# plt.xlabel("R/(R+G+B)")
+# plt.ylabel("G/(R+G+B)")
+# plt.title("wb0")
+# plot(gatherCFromFolder("images/Part2/wb0il1", exposures), 'x')
+# plot(gatherCFromFolder("images/Part2/wb0il2", exposures), '*')
+# plot(gatherCFromFolder("images/Part2/wb0il3", exposures), '.')
+# plt.show()
+
+# plt.xlabel("R/(R+G+B)")
+# plt.ylabel("G/(R+G+B)")
+# plt.title("wb1")
+# plot(gatherCFromFolder("images/Part2/wb1il1", exposures), 'x')
+# plot(gatherCFromFolder("images/Part2/wb1il2", exposures), '*')
+# plot(gatherCFromFolder("images/Part2/wb1il3", exposures), '.')
+# plt.show()
