@@ -93,8 +93,23 @@ def getCValues(img, coords: tuple[tuple[float, float], tuple[float, float], tupl
         result.append((bl.mean(), gl.mean(), rl.mean()))
     return result
 
+def greyCardMatrix(img, coords):
+    # Get the average rgb values at the patch coords
+    b, g, r = cv2.split(img[coords[1]:coords[1] + 40, coords[0]:coords[0] + 40])
+    # Return a matrix such that D * [r, g, b] = [180, 180, 180]
+    return [200 / b.mean(), 200 / g.mean(), 200 / r.mean()]
+
 # Passes a dict, where the key is B and the values are r
-img = cv2.imread("images/Part2/wb0il1/0.jpg")
+il1img, coords1 = cv2.imread("images/Part2/wb0il1/0.jpg"), (388, 1044)
+il2img, coords2 = cv2.imread("images/Part2/wb0il2/0.jpg"), (388, 972)
+il3img, coords3 = cv2.imread("images/Part2/wb0il3/0.jpg"), (324, 996)
+
+il1D = greyCardMatrix(il1img, coords1)
+il2D = greyCardMatrix(il2img, coords2)
+il3D = greyCardMatrix(il3img, coords3)
+
+
+
 # Write the image to test.jpg
 # cv2.imwrite("test.jpg", img) # 680, 1088
 # cv2.imwrite("test3.jpg", linearize(img[680:700, 1088:1108], [dict(zip(B, b)), dict(zip(B, g)), dict(zip(B, r))]))
