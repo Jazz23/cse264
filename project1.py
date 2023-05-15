@@ -78,49 +78,114 @@ def get_averages():
     # plt.show()
     return exposures, b_averages, g_averages, r_averages
 
-
-# Input is the center point of the white, blue, yellow, and red patches if img
-# Returns the average linearized rgb values of each of the 4 patches
-def getCValues(img, coords: tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]):
-    result = []
-    B, b, g, r = get_averages()
-    exposures = [dict(zip(B, b)), dict(zip(B, g)), dict(zip(B, r))]
-    for coord in coords:
-        patch = img[coord[1]:coord[1]+20, coord[0]:coord[0]+20]
-        linearized = linearize(patch, exposures)
-        bl, gl, rl = cv2.split(linearized)
-        # append a triple representing the mean r g b of linearized
-        result.append((bl.mean(), gl.mean(), rl.mean()))
-    return result
-
+# Coords is the coords of white square
 def greyCardMatrix(img, coords):
     # Get the average rgb values at the patch coords
     b, g, r = cv2.split(img[coords[1]:coords[1] + 40, coords[0]:coords[0] + 40])
     # Return a matrix such that D * [r, g, b] = [180, 180, 180]
     return [200 / b.mean(), 200 / g.mean(), 200 / r.mean()]
 
-# Passes a dict, where the key is B and the values are r
-il1img, coords1 = cv2.imread("images/Part2/wb0il1/0.jpg"), (388, 1044)
-il2img, coords2 = cv2.imread("images/Part2/wb0il2/0.jpg"), (388, 972)
-il3img, coords3 = cv2.imread("images/Part2/wb0il3/0.jpg"), (324, 996)
+def applyGreyCard(img, D):
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            img[i][j][0] *= D[0]
+            img[i][j][1] *= D[1]
+            img[i][j][2] *= D[2]
+    return img
 
-il1D = greyCardMatrix(il1img, coords1)
-il2D = greyCardMatrix(il2img, coords2)
-il3D = greyCardMatrix(il3img, coords3)
+# Input is the center point of the white, blue, yellow, and red patches if img,
+# linearized.
+# Returns the average linearized rgb values of each of the 4 patches
+def getCValues(img, exposures, coords: tuple[tuple[int, int], tuple[int, int], tuple[int, int], tuple[int, int]],
+               greyCard: bool = False, greyWorldCoords = None):
+    result = []
+    for coord in coords:
+        patch = img[coord[1]:coord[1]+20, coord[0]:coord[0]+20]
+        linearized = linearize(patch, exposures)
+        if greyCard:
+            D = greyCardMatrix(img, coords[0]) # D is [blue, green, red] multipliers
+            linearized = applyGreyCard(linearized, D) # First coord is white
+        elif greyWorldCoords != None:
+            D = getGreyWorldD(img, greyWorldCoords)
+            linearized = applyGreyCard(linearized, D)
+            
+        bl, gl, rl = cv2.split(linearized)
+        # append a triple representing the mean r g b of linearized
+        result.append((bl.mean(), gl.mean(), rl.mean()))
+    return result
 
+# Thank you chat gpt!
+# For each subarray, the first four coordinate pairs are the white, ... squares
+# The next 2 pairs are the top left and bottom right of the square box as a whole
+def parseCoords(folder):
+    coordinates = []
+    squareCoords = []
+    subarray = []
 
+    with open(os.path.join(folder, "coords.txt"), 'r') as file:
+        lines = file.readlines()
+        for line in lines:
+            line = line.strip()
+            if line:
+                x, y = map(int, line.split(','))
+                subarray.append((x, y))
+                if len(subarray) == 6:
+                    coordinates.append(subarray[:4])
+                    squareCoords.append(subarray[-2:])
+                    subarray = []
+                    
+    return coordinates, squareCoords
 
-# Write the image to test.jpg
-# cv2.imwrite("test.jpg", img) # 680, 1088
-# cv2.imwrite("test3.jpg", linearize(img[680:700, 1088:1108], [dict(zip(B, b)), dict(zip(B, g)), dict(zip(B, r))]))
-# write the patch from 684, 1104 to 704, 1124
+def getGreyWorldD(img, coords):
+    # Get the average rgb values at the patch coords
+    b, g, r = cv2.split(img[coords[0][0]:coords[1][0], coords[0][1]:coords[1][1]])
+    # Return a matrix such that D * [r, g, b] = [180, 180, 180]
+    return [200 / b.mean(), 200 / g.mean(), 200 / r.mean()]
+    
 
-# get the patch from 700, 1088 to 720, 1108
-cs = getCValues(img, ((684, 1104), (684, 1084), (704, 1084), (704, 1104)))
-# Plot (green, red) for each triple in cs, with each point as a red X
-plt.plot([x[1] for x in cs], [x[2] for x in cs], 'x', color='red')
-plt.xlabel('Green')
-plt.ylabel('Red')
-plt.show()
-cv2.waitKey(0)
-# Display the patch
+# coords is [(), ()] the top left, bottom right coords
+def applyGreyWorld(img, coords):
+    D = getGreyWorldD(img, coords)
+    
+
+# Returns an array of length 4, with each entry being (R', G') for that square
+# Array1 (4): Each color
+# Array2 (5): Each image
+# Array3 (2): R', G'
+# [ [(R', G'), (R', G'), (), (), ()], , , ]
+def gatherCFromFolder(folder, exposures, greyCard = False, greyWorld = False):
+    result = [[] for _ in range(4)]
+    coords, sqCoords = parseCoords(folder) # Square positions for w, ... and coordinates for square
+    
+    for i in range(5):
+        # For each image/angle
+        img = cv2.imread(os.path.join(folder, f"{i}.jpg"))
+        # cs is an array of lenght 4 of triples, b g r linearized average of each coord
+        greyWorldCoords = sqCoords[i] if greyWorld else None
+        cs = getCValues(img, exposures, coords[i], greyCard, greyWorldCoords)
+        totalWhite = cs[0][0] + cs[0][1] + cs[0][2]
+        rgWhite = (cs[0][2] / totalWhite, cs[0][1] / totalWhite)
+        
+        totalCyan = cs[0][0] + cs[0][1] + cs[0][2]
+        rgCyan = (cs[0][2] / totalCyan, cs[0][1] / totalCyan)
+        
+        totalYellow = cs[0][0] + cs[0][1] + cs[0][2]
+        rgYellow = (cs[0][2] / totalYellow, cs[0][1] / totalYellow)
+        
+        totalMagenta = cs[0][0] + cs[0][1] + cs[0][2]
+        rgMagenta = (cs[0][2] / totalMagenta, cs[0][1] / totalMagenta)
+        
+        result[0].append(rgWhite) # Append this pair to white's list of 5 rgs
+        result[1].append(rgCyan)
+        result[2].append(rgYellow)
+        result[3].append(rgMagenta)
+    return result
+    
+
+def plot(cs, ilSymbol, ):
+    
+    
+B, b, g, r = get_averages()
+exposures = [dict(zip(B, b)), dict(zip(B, g)), dict(zip(B, r))]
+test = gatherCFromFolder("images/Part2/wb0il1", exposures, greyWorld = True)
+print(test)
